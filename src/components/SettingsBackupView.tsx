@@ -15,7 +15,8 @@ import {
 } from 'lucide-react';
 import { AppState, FontScale, Madhhab, Snapshot, ThemeMode } from '../types/kaza';
 import {
-  decodeRecoveryCode,
+  buildBackupLink,
+  decodeBackupInput,
   formatWhatsAppBackup,
   sanitizeState
 } from '../lib/storage';
@@ -53,6 +54,8 @@ export const SettingsBackupView: React.FC<SettingsBackupViewProps> = ({
   const [importMsg, setImportMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [showResetModal, setShowResetModal] = useState(false);
   const [showInstallHelpModal, setShowInstallHelpModal] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showAllSnapshots, setShowAllSnapshots] = useState(false);
   const [resetConfirmText, setResetConfirmText] = useState('');
   const [isExportingHtml, setIsExportingHtml] = useState(false);
   const [htmlExportMsg, setHtmlExportMsg] = useState<{ ok: boolean; text: string } | null>(
@@ -87,7 +90,7 @@ export const SettingsBackupView: React.FC<SettingsBackupViewProps> = ({
   };
 
   const handleCopyBackup = async () => {
-    const text = formatWhatsAppBackup(state);
+    const text = buildBackupLink(state);
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
@@ -115,17 +118,17 @@ export const SettingsBackupView: React.FC<SettingsBackupViewProps> = ({
   };
 
   const handleRestoreCode = () => {
-    const parsed = decodeRecoveryCode(recoveryInput);
+    const parsed = decodeBackupInput(recoveryInput);
     if (!parsed) {
       setImportMsg({
         ok: false,
-        text: 'Geçerli bir KAZA1:... kurtarma kodu bulunamadı.'
+        text: 'Geçerli bir yedek linki veya kodu bulunamadı.'
       });
       return;
     }
-    onImportState(parsed, 'Kurtarma Kodu ile Geri Yükleme');
+    onImportState(parsed, 'Yedek Linki ile Geri Yükleme');
     setRecoveryInput('');
-    setImportMsg({ ok: true, text: 'Bilgileriniz kurtarma kodundan başarıyla geri yüklendi!' });
+    setImportMsg({ ok: true, text: 'Bilgileriniz başarıyla geri yüklendi!' });
   };
 
   const handleDownloadJson = () => {
@@ -301,8 +304,9 @@ export const SettingsBackupView: React.FC<SettingsBackupViewProps> = ({
           Veri Koruma ve Yedekleme
         </h2>
         <p className="section-subtitle">
-          Yanlışlıkla silme veya telefon değiştirme durumunda verilerinizin kaybolmaması için
-          otomatik yedekleme ve WhatsApp kurtarma kodu.
+          Yanlışlıkla silme veya telefon değiştirme durumunda sayılarınız kaybolmasın diye
+          kendinize veya yakınınıza bir yedek linki gönderin. İleride o linke dokununca
+          tüm bilgileriniz tek tıkla geri gelir.
         </p>
 
         {/* Lock toggle */}
@@ -348,7 +352,7 @@ export const SettingsBackupView: React.FC<SettingsBackupViewProps> = ({
             onClick={handleShareWhatsApp}
           >
             <Share2 size={20} />
-            <span>WhatsApp’a Yedek Gönder</span>
+            <span>WhatsApp’tan Yedek Linki Gönder</span>
           </button>
           <button
             type="button"
@@ -357,19 +361,31 @@ export const SettingsBackupView: React.FC<SettingsBackupViewProps> = ({
             onClick={handleCopyBackup}
           >
             {copied ? <Check size={20} /> : <Copy size={20} />}
-            <span>{copied ? 'Kopyalandı!' : 'Yedeği Kopyala'}</span>
+            <span>{copied ? 'Kopyalandı!' : 'Yedek Linkini Kopyala'}</span>
           </button>
         </div>
 
-        {/* Recovery Code Paste */}
+        <button
+          type="button"
+          className="secondary-btn"
+          style={{ width: '100%', marginBottom: showAdvanced ? 14 : 0 }}
+          onClick={() => setShowAdvanced((v) => !v)}
+          aria-expanded={showAdvanced}
+        >
+          <span>{showAdvanced ? 'Gelişmiş Seçenekleri Gizle' : 'Gelişmiş Yedekleme Seçenekleri'}</span>
+        </button>
+
+        {showAdvanced && (
+          <>
+        {/* Recovery Link Paste */}
         <div className="field-group">
           <label className="field-label" htmlFor="recovery-paste">
-            Kurtarma Kodu ile Geri Yükle (KAZA1:...)
+            Yedek Linkini veya Kodunu Yapıştırıp Geri Yükle
           </label>
           <textarea
             id="recovery-paste"
             className="textarea-control"
-            placeholder="WhatsApp'tan kopyaladığınız KAZA1:... mesajını buraya yapıştırın"
+            placeholder="Aldığınız yedek mesajını veya linkini buraya yapıştırın"
             value={recoveryInput}
             onChange={(e) => setRecoveryInput(e.target.value)}
           />
@@ -380,7 +396,7 @@ export const SettingsBackupView: React.FC<SettingsBackupViewProps> = ({
             onClick={handleRestoreCode}
           >
             <RotateCcw size={18} />
-            <span>Kurtarma Kodundan Geri Yükle</span>
+            <span>Geri Yükle</span>
           </button>
         </div>
 
@@ -413,6 +429,34 @@ export const SettingsBackupView: React.FC<SettingsBackupViewProps> = ({
           />
         </div>
 
+        <button
+          type="button"
+          className="secondary-btn"
+          style={{ width: '100%', marginTop: 10 }}
+          disabled={isExportingHtml}
+          onClick={handleDownloadStandaloneHtml}
+        >
+          <Download size={18} />
+          <span>
+            {isExportingHtml ? 'Hazırlanıyor...' : 'Bilgilerimle HTML Dosyası İndir'}
+          </span>
+        </button>
+        {htmlExportMsg && (
+          <p
+            style={{
+              marginTop: 10,
+              marginBottom: 0,
+              fontWeight: 800,
+              fontSize: 'var(--fs-sm)',
+              color: htmlExportMsg.ok ? 'var(--emerald)' : 'var(--coral)'
+            }}
+          >
+            {htmlExportMsg.text}
+          </p>
+        )}
+          </>
+        )}
+
         {importMsg && (
           <p
             style={{
@@ -443,7 +487,7 @@ export const SettingsBackupView: React.FC<SettingsBackupViewProps> = ({
           <p className="field-hint">Henüz otomatik yedek oluşmadı.</p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {state.snapshots.slice(0, 10).map((snap) => {
+            {state.snapshots.slice(0, showAllSnapshots ? 30 : 5).map((snap) => {
               const snapTotal = getTotalPrayerCount(snap.counts, state.madhhab);
               return (
                 <div
@@ -479,6 +523,15 @@ export const SettingsBackupView: React.FC<SettingsBackupViewProps> = ({
                 </div>
               );
             })}
+            {state.snapshots.length > 5 && (
+              <button
+                type="button"
+                className="secondary-btn"
+                onClick={() => setShowAllSnapshots((v) => !v)}
+              >
+                {showAllSnapshots ? 'Daha Az Göster' : 'Tümünü Göster'}
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -514,35 +567,6 @@ export const SettingsBackupView: React.FC<SettingsBackupViewProps> = ({
             <Download size={20} />
             <span>Uygulamayı Telefona / Cihaza Kur</span>
           </button>
-        )}
-
-        <button
-          type="button"
-          className="secondary-btn"
-          style={{ width: '100%', marginBottom: 14 }}
-          disabled={isExportingHtml}
-          onClick={handleDownloadStandaloneHtml}
-        >
-          <Download size={20} />
-          <span>
-            {isExportingHtml
-              ? 'Hazırlanıyor...'
-              : 'Güncel Bilgilerle HTML Yedeği İndir (Dosya)'}
-          </span>
-        </button>
-
-        {htmlExportMsg && (
-          <p
-            style={{
-              marginTop: 0,
-              marginBottom: 14,
-              fontWeight: 800,
-              fontSize: 'var(--fs-sm)',
-              color: htmlExportMsg.ok ? 'var(--emerald)' : 'var(--coral)'
-            }}
-          >
-            {htmlExportMsg.text}
-          </p>
         )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 'var(--fs-sm)' }}>
@@ -595,8 +619,9 @@ export const SettingsBackupView: React.FC<SettingsBackupViewProps> = ({
         >
           Bu uygulama herhangi bir resmi kurum, devlet dairesi veya vakıfla bağlantılı
           değildir. İçerik genel ilmihal bilgilerine dayanır; özel fıkhi durumlar için ehil
-          din görevlilerine danışılması tavsiye edilir. Tüm veriler yalnızca kendi
-          cihazınızda saklanır.
+          din görevlilerine danışılması tavsiye edilir. Kişisel veri toplamaz, çerez veya
+          takip aracı kullanmaz ve hiçbir sunucuya bilgi göndermez; tüm veriler yalnızca
+          kendi cihazınızda saklanır.
         </p>
       </div>
 

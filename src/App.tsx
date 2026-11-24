@@ -21,6 +21,7 @@ import {
 import {
   PersistenceStatus,
   createSnapshot,
+  decodeBackupInput,
   loadAppState,
   requestPersistentStorage,
   saveAppState,
@@ -55,6 +56,23 @@ export function App() {
   const undoTimerRef = useRef<number | null>(null);
   const [installPromptEvent, setInstallPromptEvent] =
     useState<BeforeInstallPromptEvent | null>(null);
+  const [pendingBackup, setPendingBackup] = useState<Partial<AppState> | null>(null);
+
+  useEffect(() => {
+    const checkHash = () => {
+      if (!window.location.hash.includes('yedek=')) return;
+      const parsed = decodeBackupInput(window.location.hash);
+      if (parsed) setPendingBackup(parsed);
+      else clearBackupHash();
+    };
+    checkHash();
+    window.addEventListener('hashchange', checkHash);
+    return () => window.removeEventListener('hashchange', checkHash);
+  }, []);
+
+  const clearBackupHash = () => {
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  };
 
   useEffect(() => {
     void loadAppState().then((loadedState) => {
@@ -455,6 +473,58 @@ export function App() {
           </button>
         ))}
       </nav>
+
+      {/* Backup Link Restore Confirmation */}
+      {pendingBackup && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <div className="modal-card">
+            <h3 className="section-title">Yedek Bulundu</h3>
+            <p className="section-subtitle">
+              Bu yedekte kalan{' '}
+              <strong>
+                {(
+                  (pendingBackup.counts?.sabah ?? 0) +
+                  (pendingBackup.counts?.ogle ?? 0) +
+                  (pendingBackup.counts?.ikindi ?? 0) +
+                  (pendingBackup.counts?.aksam ?? 0) +
+                  (pendingBackup.counts?.yatsi ?? 0) +
+                  (pendingBackup.madhhab === 'safii' ? 0 : pendingBackup.counts?.vitir ?? 0)
+                ).toLocaleString('tr-TR')}
+              </strong>{' '}
+              vakit kaza ve{' '}
+              <strong>{(pendingBackup.totalCompleted ?? 0).toLocaleString('tr-TR')}</strong>{' '}
+              kılınan kaza kayıtlı. Şu anki bilgilerinizin yerine geri yüklensin mi?
+              (Mevcut bilgileriniz Zaman Makinesi’ne yedeklenir.)
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                type="button"
+                className="secondary-btn"
+                style={{ flex: 1 }}
+                onClick={() => {
+                  setPendingBackup(null);
+                  clearBackupHash();
+                }}
+              >
+                Vazgeç
+              </button>
+              <button
+                type="button"
+                className="primary-btn"
+                style={{ flex: 1 }}
+                onClick={() => {
+                  handleImportState(pendingBackup, 'Yedek Linki ile Geri Yükleme');
+                  setPendingBackup(null);
+                  clearBackupHash();
+                  setActiveTab('tracker');
+                }}
+              >
+                Evet, Geri Yükle
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Floating Undo Toast */}
       {undoSnapshot && (

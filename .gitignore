@@ -3,3 +3,4 @@ dist/
 dist-standalone/
 public/kaza-namazi-takip.html
 .DS_Store
+.impeccable/

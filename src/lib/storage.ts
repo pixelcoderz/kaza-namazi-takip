@@ -258,6 +258,43 @@ export function encodeRecoveryCode(state: AppState): string {
   return `KAZA1:${toBase64Utf8(JSON.stringify(payload))}`;
 }
 
+function toUrlSafe(b64: string): string {
+  return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function fromUrlSafe(s: string): string {
+  const b64 = s.replace(/-/g, '+').replace(/_/g, '/');
+  return b64 + '='.repeat((4 - (b64.length % 4)) % 4);
+}
+
+export function encodeUrlSafeBackup(state: AppState): string {
+  return toUrlSafe(encodeRecoveryCode(state).replace('KAZA1:', ''));
+}
+
+const PUBLIC_APP_URL = 'https://pixelcoderz.github.io/kaza-namazi-takip/';
+
+export function buildBackupLink(state: AppState): string {
+  const isLocal =
+    typeof window === 'undefined' ||
+    window.location.protocol === 'file:' ||
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1' ||
+    window.location.hostname.startsWith('192.168.') ||
+    window.location.hostname.startsWith('10.');
+  const base = isLocal ? PUBLIC_APP_URL : `${window.location.origin}${window.location.pathname}`;
+  return `${base}#yedek=${encodeUrlSafeBackup(state)}`;
+}
+
+/** Accepts a magic link, a "#yedek=..." fragment, or a legacy "KAZA1:..." code. */
+export function decodeBackupInput(input: string): Partial<AppState> | null {
+  const text = input.trim();
+  const linkMatch = text.match(/yedek=([A-Za-z0-9_-]+)/);
+  if (linkMatch) {
+    return decodeRecoveryCode(`KAZA1:${fromUrlSafe(linkMatch[1])}`);
+  }
+  return decodeRecoveryCode(text);
+}
+
 export function decodeRecoveryCode(codeInput: string): Partial<AppState> | null {
   try {
     const match = codeInput.trim().match(/KAZA1:([A-Za-z0-9+/=]+)/);
@@ -315,8 +352,8 @@ export function formatWhatsAppBackup(state: AppState): string {
     `📊 Toplam Kalan Namaz: *${totalNamaz}*`,
     `✅ Şimdiye Kadar Kılınan: *${state.totalCompleted}*`,
     ``,
-    `🔑 *Kurtarma Kodu (Uygulamaya yapıştırarak geri yükleyebilirsiniz):*`,
-    encodeRecoveryCode(state)
+    `🔁 Bilgilerinizi geri yüklemek için bu linke dokunun:`,
+    buildBackupLink(state)
   );
 
   return lines.join('\n');
